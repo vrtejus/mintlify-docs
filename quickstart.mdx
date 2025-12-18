@@ -51,6 +51,38 @@ Get your documentation site running locally and make your first customization.
   2. Your docs will update and be live in moments!
 </Accordion>
 
+## NuGet quickstart (Windows)
+
+If you want IPSA inside a .NET pipeline, build and install the local package:
+
+```powershell
+cd C:\Users\vishn\Developer\GitHub\IPSA\nuget
+.\build.ps1
+dotnet nuget add source "C:\Users\vishn\Developer\GitHub\IPSA\nuget\artifacts" -n ipsa-local
+dotnet add package Ipsa.Native --version 0.1.0 --source ipsa-local
+```
+
+Then call the client:
+
+```csharp
+using Ipsa.Native;
+
+using var client = new IpsaClient("ipsa.db");
+var response = client.Annotate(
+    sequence: "PEPTIDE",
+    precursorCharge: 2,
+    maxFragmentCharge: 2,
+    modifications: null,
+    mz: new double[] { 100.0, 200.0 },
+    intensity: new double[] { 1000.0, 2000.0 },
+    tolerance: 20.0,
+    toleranceType: "ppm",
+    fragmentTypes: new FragmentationParams { B = true, Y = true, PrecursorStandard = true }
+);
+```
+
+For the full API, see [NuGet (Windows)](/nuget/windows).
+
 ## Next steps
 
 Now that you have your docs running, explore these key features:

@@ -1,0 +1,256 @@
+---
+title: "NuGet (Windows)"
+description: "Use IPSA's native annotation engine from .NET."
+---
+
+## Overview
+
+The IPSA NuGet package is a Windows-only .NET wrapper over the native Rust annotation engine. It ships with:
+
+- `ipsa_ffi.dll` for native annotation.
+- `nova-interop/RawFileReader.exe` for Thermo RAW spectrum extraction.
+
+This package is designed for speed: feed arrays in, receive annotation JSON or typed results out.
+
+## Requirements
+
+- Windows x64.
+- .NET 8.0+.
+- An `ipsa.db` file (use the one from the IPSA app or your own). The native engine uses it to resolve modification metadata.
+
+## Build the NuGet package (local)
+
+From the IPSA repo:
+
+```powershell
+cd C:\Users\vishn\Developer\GitHub\IPSA\nuget
+.\build.ps1
+```
+
+This produces a `.nupkg` under `C:\Users\vishn\Developer\GitHub\IPSA\nuget\artifacts`.
+
+Optional fast validation without packing:
+
+```powershell
+.\test.ps1
+```
+
+## Add the package to your project
+
+Create a local NuGet source pointing at the artifacts folder:
+
+```powershell
+dotnet nuget add source "C:\Users\vishn\Developer\GitHub\IPSA\nuget\artifacts" -n ipsa-local
+```
+
+Install the package:
+
+```powershell
+dotnet add package Ipsa.Native --version 0.1.0 --source ipsa-local
+```
+
+If you prefer editing your `.csproj`, include:
+
+```xml
+<ItemGroup>
+  <PackageReference Include="Ipsa.Native" Version="0.1.0" />
+</ItemGroup>
+```
+
+## Runtime layout
+
+At build time, the package provides:
+
+- `runtimes/win-x64/native/ipsa_ffi.dll`
+- `runtimes/win-x64/native/nova-interop/RawFileReader.exe`
+
+No extra manual copy steps are required as long as your project targets `win-x64`.
+
+## Basic annotation (arrays in, results out)
+
+```csharp
+using Ipsa.Native;
+
+var dbPath = Path.Combine(AppContext.BaseDirectory, "ipsa.db");
+using var client = new IpsaClient(dbPath);
+
+var mz = new double[] { 100.0, 200.0 };
+var intensity = new double[] { 1000.0, 2000.0 };
+
+var fragments = new FragmentationParams
+{
+    B = true,
+    Y = true,
+    PrecursorStandard = true
+};
+
+var response = client.Annotate(
+    sequence: "PEPTIDE",
+    precursorCharge: 2,
+    maxFragmentCharge: 2,
+    modifications: "15.99 M:3",
+    mz: mz,
+    intensity: intensity,
+    tolerance: 20.0,
+    toleranceType: "ppm",
+    fragmentTypes: fragments,
+    precursorMz: 456.789
+);
+
+Console.WriteLine(response.Fragments.Count);
+```
+
+If you want raw JSON instead of typed objects:
+
+```csharp
+var json = client.AnnotateJson(
+    sequence: "PEPTIDE",
+    precursorCharge: 2,
+    maxFragmentCharge: 2,
+    modifications: null,
+    mz: mz,
+    intensity: intensity,
+    tolerance: 20.0,
+    toleranceType: "ppm",
+    fragmentTypes: fragments
+);
+```
+
+## Annotate directly from RAW
+
+```csharp
+using Ipsa.Native;
+
+var dbPath = Path.Combine(AppContext.BaseDirectory, "ipsa.db");
+using var client = new IpsaClient(dbPath);
+
+var rawPath = @"C:\data\sample.raw";
+var info = RawFileReader.GetInfo(rawPath); // Uses packaged RawFileReader.exe
+
+var result = client.AnnotateFromRaw(
+    rawFilePath: rawPath,
+    scan: info.FirstScan,
+    sequence: "PEPTIDE",
+    precursorCharge: 2,
+    maxFragmentCharge: 2,
+    modifications: null,
+    tolerance: 20.0,
+    toleranceType: "ppm",
+    fragmentTypes: new FragmentationParams { B = true, Y = true, PrecursorStandard = true }
+);
+```
+
+If `RawFileReader.exe` is not next to your app, set:
+
+```powershell
+$env:IPSA_RAWFILEREADER_PATH="C:\path\to\RawFileReader.exe"
+```
+
+## Full JSON requests
+
+`AnnotateJsonRequest` accepts a full `AnnotationRequest` payload. Field names must match the Rust struct:
+
+```json
+{
+  "sequence": "PEPTIDE",
+  "precursor_charge": 2,
+  "max_fragment_charge": 2,
+  "modifications": "15.99 M:3",
+  "mz_array": [100.0, 200.0],
+  "intensity_array": [1000.0, 2000.0],
+  "tolerance": 20.0,
+  "tolerance_type": "ppm",
+  "fragment_types": {
+    "a": false,
+    "b": true,
+    "c": false,
+    "c_minus_1": false,
+    "x": false,
+    "y": true,
+    "z": false,
+    "z_plus_1": false,
+    "h2o_loss": false,
+    "nh3_loss": false,
+    "co2_loss": false,
+    "hpo3_loss": false,
+    "precursor_standard": true,
+    "precursor_etd": false,
+    "precursor_hcd": false
+  },
+  "use_all_oxonium": false,
+  "precursor_mz": 456.789
+}
+```
+
+```csharp
+var json = File.ReadAllText("request.json");
+var responseJson = client.AnnotateJsonRequest(json);
+```
+
+## Oxonium ions and Y-ion settings
+
+You can pass custom oxonium ions or Y-ion settings as JSON strings into `Annotate`/`AnnotateJson`.
+
+Oxonium ion JSON (`OxoniumIon`):
+
+```json
+[
+  {
+    "id": "HexNAc",
+    "name": "HexNAc",
+    "mz": 204.0867,
+    "selected": true,
+    "color": "#ef4444",
+    "category": "glycan"
+  }
+]
+```
+
+Y-ion settings JSON (`YIonSettings`):
+
+```json
+{
+  "enabled": true,
+  "monosaccharides": [
+    {
+      "name": "HexNAc",
+      "symbol": "N",
+      "mass": 203.079373,
+      "enabled": true,
+      "color": "#f59e0b"
+    }
+  ],
+  "max_iterations": 6,
+  "tolerance_ppm": 20.0,
+  "color": "#f59e0b"
+}
+```
+
+## Packaging `ipsa.db` with your app
+
+If you want to ship `ipsa.db` alongside your .NET app:
+
+```xml
+<ItemGroup>
+  <None Include="ipsa.db" CopyToOutputDirectory="PreserveNewest" />
+</ItemGroup>
+```
+
+```csharp
+var dbPath = Path.Combine(AppContext.BaseDirectory, "ipsa.db");
+using var client = new IpsaClient(dbPath);
+```
+
+## Error handling
+
+Native failures throw `IpsaNativeException`. Common causes:
+
+- `ipsa_ffi.dll` not found (ensure `win-x64` runtime assets are copied).
+- `ipsa.db` missing or invalid.
+- `RawFileReader.exe` missing (set `IPSA_RAWFILEREADER_PATH`).
+
+## Performance guidance
+
+- Reuse a single `IpsaClient` for many annotations.
+- Avoid per-call JSON if you can pass arrays directly.
+- If you need concurrency, create one `IpsaClient` per worker to avoid sharing the native handle.
