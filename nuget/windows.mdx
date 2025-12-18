@@ -22,18 +22,7 @@ IPSA’s NuGet package is a thin .NET wrapper over the same native Rust engine u
 
 ## Data flow
 
-```text
-Spectrum (mz/intensity) + metadata
-          |
-          v
-Ipsa.Native (C# P/Invoke)
-          |
-          v
-ipsa_ffi.dll (Rust FFI -> IPSA core)
-          |
-          v
-AnnotationResponse JSON -> typed C# objects
-```
+![NuGet annotation data flow](/images/nuget-dataflow.svg)
 
 If you call `AnnotateFromRaw`, the spectrum is first fetched through `RawFileReader.exe`, then passed into the native engine.
 
