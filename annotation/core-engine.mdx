@@ -1,0 +1,104 @@
+---
+title: "Core Annotation Engine"
+description: "AnnotationRequest structure, fragment generation, and peak matching."
+---
+
+## Annotation request contract
+
+The UI sends this payload to the backend via `annotate_spectrum` or
+`annotate_spectrum_with_overrides`.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `sequence` | string | Peptide sequence (uppercased in core). |
+| `precursor_charge` | int | Charge state from the identification. |
+| `max_fragment_charge` | int | UI sets `min(precursor_charge - 1, 3)`. |
+| `modifications` | string? | IPSA-Coon format: `"42.0106 K:3;15.9949 M:5"`. |
+| `mz_array` | float[] | Experimental m/z values. |
+| `intensity_array` | float[] | Matching intensities. |
+| `tolerance` | float | Used in matching (ppm or Da). |
+| `tolerance_type` | string | `"ppm"` or `"Da"`. |
+| `fragment_types` | FragmentationParams | Ion series and neutral losses. |
+| `oxonium_ions` | OxoniumIon[]? | Optional user list to match. |
+| `use_all_oxonium` | bool | Forces backend defaults when true. |
+| `y_ion_settings` | YIonSettings? | Optional glycan Y-ion config. |
+| `precursor_mz` | float? | Required for Y-ion calculation. |
+
+**References**
+
+- `src-tauri/src/lib.rs` (`AnnotationRequest`)
+- `src/components/SpectrumViewer.vue` (`annotateSpectrum`)
+
+## Modification parsing
+
+`parse_modifications_with_db` normalizes the modification string before annotation:
+
+- Numeric tokens (mass first) are accepted as-is.
+- Named tokens require a database lookup in `modifications`.
+- N-term and C-term positions are mapped to index `0` or `sequence_len + 1`.
+
+This is the same function used by the UI and the CLI/FFI surfaces.
+
+**References**
+
+- `src-tauri/src/lib.rs` (`parse_modifications_with_db`)
+- `src-tauri/src/database.rs` (`modifications` table)
+
+## run_annotation_core
+
+`run_annotation_core` is the shared backend entry point for actual annotation work.
+
+1. Build a `PeptideAnnotator` with sequence, charges, modifications, and tolerance.
+2. Generate theoretical fragments and match them to experimental peaks.
+3. Match oxonium ions if provided or if `use_all_oxonium` is true.
+4. Optionally compute Y-ions when glycan settings are enabled.
+
+**References**
+
+- `src-tauri/src/lib.rs` (`run_annotation_core`)
+
+## Fragmentation parameters
+
+`FragmentationParams` controls which fragments are generated:
+
+- Ion series: `a`, `b`, `c`, `c_minus_1`, `x`, `y`, `z`, `z_plus_1`.
+- Neutral losses: `h2o_loss`, `nh3_loss`, `co2_loss`, `hpo3_loss`.
+- Precursors: `precursor_standard`, `precursor_etd`, `precursor_hcd`.
+
+These flags are sent directly from UI settings into the backend.
+
+**References**
+
+- `src-tauri/src/peptide_annotation.rs` (`FragmentationParams`)
+- `src/components/AnalysisSettings.vue`
+- `src/components/SpectrumViewer.vue`
+
+## PeptideAnnotator internals
+
+`PeptideAnnotator` is the core algorithm. It:
+
+- Computes precursor mass = sum(amino acids) + sum(mod masses) + H2O.
+- Generates precursor ions, then N-term (a,b,c,c-1) and C-term (x,y,z,z+1) fragments.
+- Adds neutral losses when enabled and residues allow it.
+- Generates charge states from 1 to `min(max_fragment_charge, precursor_charge - 1)`.
+- Matches each theoretical fragment to the first experimental peak within tolerance.
+
+**References**
+
+- `src-tauri/src/peptide_annotation.rs`
+
+## Peak matching behavior
+
+`match_peaks` loops all theoretical fragments and scans the experimental array until
+it finds a peak within tolerance. The first match wins; the fragment is cloned with
+observed m/z and intensity, and the search moves on.
+
+This has two important implications:
+
+- It is a greedy, first-match approach (not a global optimum).
+- A single experimental peak can be matched by multiple fragments if they occur
+  earlier in the theoretical list.
+
+**References**
+
+- `src-tauri/src/peptide_annotation.rs` (`match_peaks`)

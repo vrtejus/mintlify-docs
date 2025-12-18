@@ -1,0 +1,76 @@
+---
+title: "Glycan Extensions (Oxonium and Y-ions)"
+description: "Glycan modes, oxonium matching, and Y-ion calculation."
+---
+
+## Glycan modes (full, hexnac, none)
+
+The UI computes three modification strings and annotates all three modes in parallel:
+
+- `full`: use canonical modification masses from the DB.
+- `hexnac`: replace any glycan-like modification with 203.0794 (HexNAc mass).
+- `none`: drop glycan-like modifications entirely.
+
+Glycan-like rows are detected by:
+
+- Mass >= 203.0, or
+- Name containing `hex`, `hexnac`, `glyc`, `fuc`, `neu`, or
+- Shorthand regex like `N3H2`.
+
+**References**
+
+- `src/components/SpectrumViewer.vue` (`buildModMassStringForMode`, `isGlycanRow`)
+
+## Oxonium ion matching
+
+### Defaults
+
+- Backend defaults live in `src-tauri/src/oxonium.rs`.
+- UI defaults live in `src/lib/oxonium-ions.ts`.
+- Both lists mark all ions as selected by default.
+
+### Request behavior
+
+- If `use_all_oxonium` is true, the backend uses its built-in list.
+- Else, `oxonium_ions` from the UI are matched directly.
+- `match_oxonium_ions` selects the closest peak per ion within tolerance.
+
+**References**
+
+- `src-tauri/src/oxonium.rs`
+- `src-tauri/src/lib.rs` (`match_oxonium_ions`)
+- `src/lib/oxonium-ions.ts`
+
+## Y-ion calculation
+
+Y-ions are calculated only when:
+
+- `y_ion_settings.enabled` is true, and
+- `precursor_mz` is provided, and
+- the modification string looks glycan-like.
+
+`YIonCalculator` performs a breadth-first search over enabled monosaccharide losses:
+
+1. Start from the theoretical precursor m/z (and all charge states).
+2. Iteratively subtract monosaccharide masses to generate candidate Y-ions.
+3. For each candidate, search the peak list within tolerance and keep the best match.
+
+**References**
+
+- `src-tauri/src/glycan_analysis.rs` (`YIonCalculator`)
+- `src-tauri/src/lib.rs` (Y-ion logic inside `run_annotation_core`)
+
+## Merging modes in the UI
+
+`SpectrumViewer` merges annotation results across the selected glycan modes:
+
+- Fragments: union by `fragment_type|fragment_number|neutral_loss|charge`.
+- Oxonium ions: union by `name` and rounded m/z.
+- Y-ions: union by `label|charge|observed_mz`.
+
+If multiple modes are active, labels are prefixed with `[Full]`, `[HexNAc]`, or `[None]`
+for clarity.
+
+**References**
+
+- `src/components/SpectrumViewer.vue`

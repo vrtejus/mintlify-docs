@@ -1,0 +1,78 @@
+---
+title: "Annotation Engine Overview"
+description: "End-to-end flow from UI trigger to annotation output."
+---
+
+<Note>
+  This section documents the annotation pipeline as implemented in the current IPSA codebase.
+  File references point to the exact implementations used by the desktop app.
+</Note>
+
+## End-to-end flow
+
+<Steps>
+  <Step title="Select an identification">
+    `IntegratedViewer` loads hierarchical settings, then sets `selectedIdentification`.
+    This triggers `SpectrumViewer` to load the spectrum and annotate.
+  </Step>
+  <Step title="Load spectrum data">
+    `SpectrumViewer` calls the Tauri command `get_spectrum_for_ipsa`, which reads the
+    raw/mzML scan via `NovaReader` and formats arrays for annotation.
+  </Step>
+  <Step title="Build annotation request">
+    `SpectrumViewer` assembles `AnnotationRequest` using the scan arrays, tolerance,
+    fragment types, oxonium ions, Y-ion settings, and canonical modification masses.
+  </Step>
+  <Step title="Run annotation core">
+    Tauri executes `annotate_spectrum` (or `annotate_spectrum_with_overrides`), which
+    resolves modifications with the DB and runs `run_annotation_core`.
+  </Step>
+  <Step title="Render and compute stats">
+    The UI merges fragments, oxonium ions, and Y-ions into `annotations`, then redraws
+    the spectrum and emits telemetry (coverage, intensity, matched peaks).
+  </Step>
+</Steps>
+
+## Data path at a glance
+
+```text
+IntegratedViewer (select identification)
+  -> SpectrumViewer (loadSpectrum)
+    -> invoke get_spectrum_for_ipsa (src-tauri/src/lib.rs)
+      -> NovaReader (src-tauri/src/nova_reader.rs)
+    -> annotateSpectrum (src/components/SpectrumViewer.vue)
+      -> annotate_spectrum / annotate_spectrum_with_overrides (src-tauri/src/lib.rs)
+        -> parse_modifications_with_db (src-tauri/src/lib.rs)
+        -> run_annotation_core (src-tauri/src/lib.rs)
+          -> PeptideAnnotator (src-tauri/src/peptide_annotation.rs)
+          -> match_oxonium_ions (src-tauri/src/lib.rs)
+          -> YIonCalculator (src-tauri/src/glycan_analysis.rs)
+```
+
+## Primary entry points
+
+- UI: `src/components/IntegratedViewer.vue` and `src/components/SpectrumViewer.vue`.
+- Tauri commands: `src-tauri/src/lib.rs` (`annotate_spectrum`, `annotate_spectrum_with_overrides`).
+- Core algorithm: `src-tauri/src/peptide_annotation.rs` and `src-tauri/src/glycan_analysis.rs`.
+- Spectrum reader: `src-tauri/src/nova_reader.rs` (RawFileReader.exe).
+- External surfaces: `src-tauri/src/bin/ipsa.rs` (stdin JSON RPC) and `ipsa-ffi/src/lib.rs`.
+
+## Detailed guides
+
+<CardGroup cols={2}>
+  <Card title="UI triggers" icon="bolt" href="/annotation/ui-triggers">
+    Exactly how the UI kicks off annotation and re-annotation.
+  </Card>
+  <Card title="Core engine" icon="gear" href="/annotation/core-engine">
+    `AnnotationRequest`, fragment generation, and peak matching.
+  </Card>
+  <Card title="Glycan extensions" icon="vials" href="/annotation/glycan-extensions">
+    Oxonium ions, Y-ions, and glycan modes.
+  </Card>
+  <Card title="Overrides and storage" icon="database" href="/annotation/overrides-and-storage">
+    Manual overrides and how they are applied.
+  </Card>
+  <Card title="CLI and FFI" icon="terminal" href="/annotation/cli-and-ffi">
+    Headless and external integration entry points.
+  </Card>
+</CardGroup>

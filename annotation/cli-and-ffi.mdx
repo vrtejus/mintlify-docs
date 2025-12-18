@@ -1,0 +1,66 @@
+---
+title: "CLI and FFI Entry Points"
+description: "Headless access to the annotation engine."
+---
+
+## JSON-RPC CLI (stdin)
+
+`src-tauri/src/bin/ipsa.rs` exposes a simple line-delimited JSON-RPC protocol.
+Each line is a request object with `method: "annotate"`.
+
+**Environment**
+
+- `IPSA_DB_PATH` controls which SQLite DB is used for modification lookups.
+- Defaults to `ipsa.db` in the working directory.
+
+**Request shape**
+
+```json
+{
+  "id": "req-1",
+  "method": "annotate",
+  "params": {
+    "sequence": "PEPTIDE",
+    "precursor_charge": 2,
+    "max_fragment_charge": 1,
+    "modifications": "",
+    "mz_array": [100.0, 200.0],
+    "intensity_array": [1000.0, 500.0],
+    "tolerance": 20.0,
+    "tolerance_type": "ppm",
+    "fragment_types": { "a": false, "b": true, "c": false, "c_minus_1": false, "x": false, "y": true, "z": false, "z_plus_1": false, "h2o_loss": false, "nh3_loss": false, "co2_loss": false, "hpo3_loss": false, "precursor_standard": true, "precursor_etd": false, "precursor_hcd": false },
+    "oxonium_ions": null,
+    "use_all_oxonium": false,
+    "y_ion_settings": null,
+    "precursor_mz": null
+  }
+}
+```
+
+**Response**
+
+A success response is `{ "id": "req-1", "result": { ...AnnotationResponse... } }`.
+Errors are returned as `{ "id": "req-1", "error": "..." }`.
+
+**References**
+
+- `src-tauri/src/bin/ipsa.rs`
+
+## C FFI interface
+
+`ipsa-ffi` provides a C-compatible API for external integrations.
+
+Key functions:
+
+- `ipsa_init(db_path)` returns a handle with a loaded `Database`.
+- `ipsa_annotate_json(handle, json)` accepts `AnnotationRequest` JSON.
+- `ipsa_annotate(handle, ...)` accepts raw arrays and structured params.
+- `ipsa_free_buffer` and `ipsa_last_error` manage error handling and memory.
+
+All FFI calls route into the same `run_annotation_core` and
+`parse_modifications_with_db` logic as the desktop app.
+
+**References**
+
+- `ipsa-ffi/src/lib.rs`
+- `src-tauri/src/lib.rs` (`run_annotation_core`)

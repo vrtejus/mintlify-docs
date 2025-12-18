@@ -14,21 +14,24 @@
         "tab": "Guides",
         "groups": [
           {
-            "group": "Getting started",
-            "pages": [
-              "index",
-              "quickstart",
-              "development",
-              "nuget/windows"
-            ]
-          },
-          {
             "group": "Data ingestion",
             "pages": [
               "data-ingestion/overview",
               "data-ingestion/universal-psm-converter",
               "data-ingestion/multi-search-processing",
               "data-ingestion/database-insertion"
+            ]
+          },
+          {
+            "group": "Annotation engine",
+            "pages": [
+              "annotation/overview",
+              "annotation/ui-triggers",
+              "annotation/core-engine",
+              "annotation/glycan-extensions",
+              "annotation/overrides-and-storage",
+              "annotation/cli-and-ffi",
+              "nuget/windows"
             ]
           }
         ]

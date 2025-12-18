@@ -1,0 +1,126 @@
+---
+title: "UI Triggers and Re-annotation"
+description: "Every UI path that triggers annotation, with the exact code paths."
+---
+
+## Identification selection
+
+When a user selects an identification in the file browser, the app loads settings before
+annotation so the viewer always uses the correct configuration.
+
+**Flow**
+
+<Steps>
+  <Step title="Select identification">
+    `handleIdentificationSelect` in `src/components/IntegratedViewer.vue` resolves the
+    raw file path and loads hierarchical settings via `get_hierarchical_settings`.
+  </Step>
+  <Step title="Apply settings then select">
+    `currentSettings` is updated, then `selectedIdentification` is set. This ordering
+    prevents stale settings from being used in `SpectrumViewer`.
+  </Step>
+  <Step title="Watcher kicks in">
+    `SpectrumViewer` watches `[identification, analysisSettings]` and calls `loadSpectrum`
+    once it has both the identification and settings.
+  </Step>
+</Steps>
+
+**References**
+
+- `src/components/IntegratedViewer.vue`
+- `src/components/SpectrumViewer.vue`
+- `src-tauri/src/lib.rs` (`get_hierarchical_settings`)
+- `src-tauri/src/database.rs` (`get_hierarchical_settings`)
+
+## Spectrum loading and initial annotation
+
+`SpectrumViewer` loads the scan data and immediately annotates it.
+
+```text
+SpectrumViewer.loadSpectrum(scan)
+  -> invoke get_spectrum_for_ipsa
+  -> annotateSpectrum()
+  -> computeOriginalAnnotations()
+```
+
+Key details:
+
+- `get_spectrum_for_ipsa` reads from RAW/mzML via `NovaReader` and returns arrays plus
+  metadata like precursor m/z and fragmentation method.
+- After data load, `annotateSpectrum` runs, then `computeOriginalAnnotations` builds
+  mirror-plot annotations using the original modification string.
+
+**References**
+
+- `src/components/SpectrumViewer.vue`
+- `src-tauri/src/lib.rs` (`get_spectrum_for_ipsa`)
+- `src-tauri/src/nova_reader.rs`
+
+## Settings updates from the Analysis panel
+
+`AnalysisSettings` emits a settings payload on every change. `IntegratedViewer` routes
+it into `SpectrumViewer.applySettings`, which re-annotates without persisting.
+
+**Flow**
+
+1. `AnalysisSettings.vue` emits `update:settings`.
+2. `IntegratedViewer.vue` receives it in `handleSettingsUpdate`.
+3. `SpectrumViewer.applySettings` updates local state and calls `annotateSpectrum`.
+
+**References**
+
+- `src/components/AnalysisSettings.vue`
+- `src/components/IntegratedViewer.vue`
+- `src/components/SpectrumViewer.vue`
+
+## Glycan settings (oxonium + Y-ions)
+
+`GlycansSettings` sends a specialized signal so glycan-specific toggles can trigger
+re-annotation immediately.
+
+- `GlycansSettings.vue` builds a full settings snapshot and adds
+  `glycansSettingsChanged: true`.
+- `IntegratedViewer.vue` detects that flag and calls
+  `spectrumViewerRef.reAnnotateWithGlycanSettings(...)` after a short delay.
+
+**References**
+
+- `src/components/GlycansSettings.vue`
+- `src/components/IntegratedViewer.vue`
+- `src/components/SpectrumViewer.vue` (`reAnnotateWithGlycanSettings`)
+
+## Manual annotation overrides
+
+Both the peak drawer and bottom panel emit override actions that save to the database
+and then re-annotate.
+
+- Suppress: `save_annotation_override` with `action: "suppress"`.
+- Manual add/assign: `save_annotation_override` with `action: "add"` or `"assign"`.
+- Each override call triggers `annotateSpectrum` to re-run.
+
+**References**
+
+- `src/components/SpectrumViewer.vue`
+- `src/components/PeakDrawer.vue`
+- `src/components/SmartBottomPanel.vue`
+- `src-tauri/src/lib.rs` (`save_annotation_override`)
+
+## External modification changes
+
+If modifications are edited elsewhere (for example, in the Changes view), the UI dispatches
+`modifications-updated`. `SpectrumViewer` listens, reloads canonical mapping rows, and
+re-annotates.
+
+**References**
+
+- `src/components/SpectrumViewer.vue` (`handleExternalModsUpdate`)
+- `src/components/ChangesViewer.vue`
+
+## Manual refresh and scan navigation
+
+- Toolbar refresh calls `reAnnotate`, which re-runs `annotateSpectrum` and redraws.
+- Switching scans clears cached oxonium ions and peak selection state before re-annotation.
+
+**References**
+
+- `src/components/SpectrumViewer.vue`

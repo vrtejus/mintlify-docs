@@ -1,0 +1,74 @@
+---
+title: "Overrides and Storage"
+description: "Manual annotation overrides and how they are applied."
+---
+
+## Override storage
+
+Overrides are persisted in SQLite so they survive app restarts.
+
+Table: `annotation_overrides` in `src-tauri/src/database.rs`.
+
+| Column | Purpose |
+| --- | --- |
+| `parsed_identification_id` | Identification being edited. |
+| `peak_index` | Optional peak index in the spectrum array. |
+| `observed_mz` | Observed m/z to target. |
+| `mz_tolerance_ppm` | Tolerance for locating the peak. |
+| `action` | `suppress`, `assign`, or `add`. |
+| `fragment_type` | Theoretical ion series (for assign). |
+| `fragment_number` | Fragment number (for assign). |
+| `neutral_loss` | Optional loss label. |
+| `charge` | Charge for assigned fragment. |
+| `label` | Optional custom label. |
+| `color` | Optional color override. |
+
+**References**
+
+- `src-tauri/src/database.rs` (`annotation_overrides` schema)
+
+## Saving overrides from the UI
+
+The UI stores overrides via `save_annotation_override`:
+
+- Suppress: Peak drawer or bottom panel calls `action: "suppress"`.
+- Assign: Manual assign passes `action: "assign"` with fragment metadata.
+- Add: Manual annotation passes `action: "add"` with a label and color.
+
+After saving, the UI calls `annotateSpectrum` to refresh annotations.
+
+**References**
+
+- `src/components/SpectrumViewer.vue`
+- `src-tauri/src/lib.rs` (`save_annotation_override`)
+
+## Applying overrides in the backend
+
+`annotate_spectrum_with_overrides` applies overrides on top of the base annotation:
+
+- It generates a full theoretical fragment list with `build_all_frag_params`.
+- For each override, it locates the peak by index (if valid) or by closest m/z.
+- `suppress`: removes any fragment within tolerance of the target peak.
+- `assign`: adds a new fragment entry using the theoretical ion parameters.
+- `label`: updates the label for an existing fragment within tolerance.
+
+**Important current behavior**
+
+The backend only handles `suppress`, `assign`, and `label`. Overrides stored with
+`action: "add"` are currently ignored by the application logic.
+
+**References**
+
+- `src-tauri/src/lib.rs` (`annotate_spectrum_with_overrides`)
+- `src-tauri/src/lib.rs` (`find_peak_index_by_override`, `build_all_frag_params`)
+
+## Override maintenance APIs
+
+- `get_annotation_overrides` returns stored overrides.
+- `delete_annotation_override` removes a single row.
+- `clear_annotation_overrides_for_identification` removes all for an identification.
+
+**References**
+
+- `src-tauri/src/lib.rs`
+- `src-tauri/src/database.rs`
