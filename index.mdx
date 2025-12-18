@@ -1,59 +1,18 @@
 ---
 title: "Introduction"
-description: "Welcome to IPSA - Interactive Peptide Spectral Annotator"
+description: "Interactive Peptide Spectral Annotator"
 ---
 
-## Getting Started
+IPSA is a desktop application for mass spectrometry data analysis and spectral annotation.
 
-IPSA is a powerful tool for annotating and visualizing peptide mass spectra with precision and ease.
-
-<Card
-  title="Quick Start"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Get up and running with IPSA in minutes.
-</Card>
-
-<Card
-  title="NuGet SDK (Windows)"
-  icon="cube"
-  href="/nuget/windows"
-  horizontal
->
-  Integrate IPSA directly into .NET pipelines.
-</Card>
-
-## Core Features
-
-<Columns cols={2}>
-  <Card
-    title="Spectrum Visualization"
-    icon="chart-line"
-    href="/essentials/settings"
-  >
-    Interactive visualization of MS/MS spectra with customizable annotations.
+<CardGroup cols={2}>
+  <Card title="Data Ingestion" icon="database" href="/data-ingestion/overview">
+    Import PSM data from various search engines.
   </Card>
-  <Card
-    title="Modification Tracking"
-    icon="pen-to-square"
-    href="/essentials/navigation"
-  >
-    Track and manage post-translational modifications with git-like change tracking.
+  <Card title="Annotation Engine" icon="bolt" href="/annotation/overview">
+    Annotate MS/MS spectra with fragment ions.
   </Card>
-  <Card
-    title="File Format Support"
-    icon="file"
-    href="/essentials/markdown"
-  >
-    Support for RAW, mzML, CSV, and FragPipe TSV file formats.
+  <Card title="NuGet SDK" icon="cube" href="/nuget/windows">
+    Use IPSA in .NET pipelines.
   </Card>
-  <Card
-    title="API Reference"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Integrate IPSA into your analysis pipeline.
-  </Card>
-</Columns>
+</CardGroup>
