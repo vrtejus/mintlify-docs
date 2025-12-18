@@ -1,0 +1,125 @@
+---
+title: "Database Insertion and Linking"
+description: "How IPSA imports CSVs, links files, and builds canonical mappings."
+---
+
+## CSV detection
+
+IPSA determines CSV type by header inspection:
+
+- Identifications require `Scan`, `Sequence`, `Charge`.
+- Modifications require `Modification Name` and `Modification Mass`.
+
+The detection is case-insensitive and supports header variants like
+`modification` / `modifications` and `modification_name` / `modification mass`.
+
+## Tables touched during import
+
+| Table | Purpose |
+| --- | --- |
+| `files` | Registry of uploaded files and parent-child bundles. |
+| `identification_metadata` | Row counts and checksum for identification CSVs. |
+| `modification_metadata` | Row counts and checksum for modification CSVs. |
+| `parsed_identifications` | Core identification rows (scan, sequence, charge). |
+| `modifications` | Canonical modification name + mass lookup. |
+| `parsed_modifications` | Raw modification rows for traceability. |
+| `modifications_mappings` | Identification-to-modification site mapping. |
+| `modification_links` | Links modifications files to identification files. |
+
+## Identification import (what happens)
+
+<Steps>
+  <Step title="Register the file">
+    Inserts a row into `files` with `file_type = 'identifications'`.
+  </Step>
+  <Step title="Write metadata">
+    Writes `identification_metadata` with checksum and row count.
+  </Step>
+  <Step title="Insert parsed rows">
+    Inserts each row into `parsed_identifications` with `scan`, `sequence`,
+    `charge`, `original_modifications`, and `spectral_file`.
+  </Step>
+  <Step title="Auto-link to RAW/mzML (if possible)">
+    If `spectral_file` is present, IPSA matches its base name against
+    existing RAW/mzML files in `files` and sets `linked_raw_file_id`.
+  </Step>
+  <Step title="Build canonical modification mappings">
+    IPSA parses the modification string and inserts into `modifications` and
+    `modifications_mappings` when possible.
+  </Step>
+</Steps>
+
+### Modification parsing rules (identifications)
+
+Given a token like `15.99 M:3` or `HexNAc(2)Hex(8) N:11`, IPSA tries:
+
+1. Numeric mass (creates a canonical modification on the fly).
+2. Exact name match in `modifications`.
+3. Case-insensitive match.
+4. Name plus residue suffix (e.g., `HexNAc(2)Hex(8) N`).
+5. Glycan mass inference (for glycan compositions).
+
+If a canonical modification is resolved, a row is inserted into
+`modifications_mappings` with the site token (e.g., `N:11`).
+
+## Modification import (what happens)
+
+<Steps>
+  <Step title="Register the file">
+    Inserts a row into `files` with `file_type = 'modifications'`.
+  </Step>
+  <Step title="Write metadata">
+    Writes `modification_metadata` with checksum and row count.
+  </Step>
+  <Step title="Upsert canonical modifications">
+    Inserts into `modifications` if the name does not exist.
+  </Step>
+  <Step title="Write traceability rows">
+    Inserts into `parsed_modifications` for auditability.
+  </Step>
+  <Step title="Backfill mappings">
+    If any identifications reference a named modification, IPSA backfills
+    `modifications_mappings` in bulk.
+  </Step>
+</Steps>
+
+### Conflict handling
+
+If a modification name already exists with a different mass, the import fails
+with a recognizable error:
+
+```text
+MOD_CONFLICT:<name>:<existing_mass>:<new_mass>
+```
+
+Use the conflict resolution path to choose `keep` or `new` per modification name.
+
+## Linking files into an IPSA Standard bundle
+
+When you link a modification file to an identification file, IPSA:
+
+- Creates or reuses an `ipsa_standard` parent in `files`.
+- Inserts a row into `modification_links` with an optional priority.
+- Updates `parent_file_id` on both child files.
+
+This is how the UI groups an identification file and its modification file(s).
+
+## RAW linking
+
+When a RAW/mzML file is imported, IPSA attempts to link unlinked identifications
+by matching `spectral_file` base names (case-insensitive, `.raw` and `.mzML`
+extensions stripped). Linked rows get `linked_raw_file_id` set.
+
+## Verify with sqlite3 (optional)
+
+```bash
+sqlite3 ipsa.db "SELECT COUNT(*) FROM parsed_identifications;"
+sqlite3 ipsa.db "SELECT COUNT(*) FROM modifications;"
+sqlite3 ipsa.db "SELECT COUNT(*) FROM modifications_mappings;"
+sqlite3 ipsa.db "SELECT COUNT(*) FROM parsed_identifications WHERE linked_raw_file_id IS NULL;"
+```
+
+## Transaction behavior
+
+Imports run inside a transaction. If any step fails, the entire import is rolled
+back and the database is unchanged.

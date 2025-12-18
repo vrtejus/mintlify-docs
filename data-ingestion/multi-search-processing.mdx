@@ -1,0 +1,63 @@
+---
+title: "Multi-search Engine Processing"
+description: "How IPSA keeps multiple search engine outputs isolated and comparable."
+---
+
+## Concept
+
+IPSA treats each search engine output as its own identification file. This keeps
+engine results isolated so you can compare or switch between them without merging.
+
+```text
+Engine A output -> IPSA auto-convert + import -> Identification file A
+Engine B output -> IPSA auto-convert + import -> Identification file B
+Engine C output -> IPSA auto-convert + import -> Identification file C
+```
+
+## Recommended workflow
+
+<Steps>
+  <Step title="Add each engine output">
+    Drop each search engine export into IPSA. The app auto-detects the format and
+    runs the Universal PSM Converter internally. Use the CLI only if you want
+    offline/batch conversion.
+  </Step>
+  <Step title="Import into IPSA">
+    IPSA imports the resulting CSVs and creates one identification file per engine.
+    If you pre-convert, upload `Identifications.csv` and `Modifications.csv` instead.
+  </Step>
+  <Step title="Review and switch">
+    Use the IPSA UI to switch between identification files or compare them side by side.
+  </Step>
+</Steps>
+
+## How IPSA groups files
+
+When you link an identification file with one or more modification files, IPSA
+creates (or reuses) an **IPSA Standard** parent record in the `files` table. Both
+child files point to that parent through `parent_file_id`, which is how the UI
+treats them as one bundle.
+
+<CardGroup cols={2}>
+  <Card title="Identification file" icon="file">
+    Stores scans, sequences, charges, and modification strings.
+  </Card>
+  <Card title="Modification file" icon="flask">
+    Defines canonical modification names and masses for mapping.
+  </Card>
+</CardGroup>
+
+## Multiple modification files
+
+You can link multiple modification files to the same identification file.
+IPSA stores the relationship in `modification_links` along with an optional
+priority value. If you do not specify a priority, the default is `0`.
+
+## RAW / mzML alignment
+
+If the identification CSV includes a `spectral_file` column, IPSA attempts to
+auto-link identifications to RAW or mzML files by matching base filenames
+case-insensitively.
+
+If RAW files are imported later, IPSA can link unlinked identifications
+using the same filename matching logic.

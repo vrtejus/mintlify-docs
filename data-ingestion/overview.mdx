@@ -1,0 +1,54 @@
+---
+title: "Data Ingestion Overview"
+description: "End-to-end flow from search engine outputs to the IPSA database."
+---
+
+<Note>
+  IPSA can ingest native search engine outputs directly and will run the Universal PSM
+  Converter automatically. If you already have IPSA CSVs (or need batch/CI conversion),
+  you can generate them with the converter CLI and import them.
+</Note>
+
+## Pipeline
+
+<Steps>
+  <Step title="Add search engine output (or IPSA CSVs)">
+    Drop a supported engine export into IPSA to auto-convert, or provide
+    `Identifications.csv` and `Modifications.csv` directly.
+  </Step>
+  <Step title="Auto-convert and import">
+    IPSA detects the engine format, runs the converter internally when needed, and
+    imports the resulting CSVs into the database.
+  </Step>
+  <Step title="Annotate and review">
+    IPSA links spectra (RAW/mzML) to identifications and runs annotation on demand.
+  </Step>
+</Steps>
+
+## Data flow
+
+```text
+Search engine output
+    -> IPSA (auto-detect + Universal PSM Converter)
+    -> Identifications.csv + Modifications.csv
+    -> IPSA CSV import
+    -> IPSA database + annotation engine
+
+Pre-converted IPSA CSVs
+    -> IPSA CSV import
+    -> IPSA database + annotation engine
+```
+
+## Detailed guides
+
+<CardGroup cols={2}>
+  <Card title="Universal PSM Converter" icon="wand-magic-sparkles" href="/data-ingestion/universal-psm-converter">
+    How IPSA auto-converts, plus CLI usage and output validation.
+  </Card>
+  <Card title="Multi-search processing" icon="layer-group" href="/data-ingestion/multi-search-processing">
+    How IPSA handles multiple search engine outputs.
+  </Card>
+  <Card title="Database insertion" icon="database" href="/data-ingestion/database-insertion">
+    What happens during CSV import and linking.
+  </Card>
+</CardGroup>

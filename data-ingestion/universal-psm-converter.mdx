@@ -1,0 +1,129 @@
+---
+title: "Universal PSM Converter"
+description: "Normalize search engine outputs into the IPSA CSV schema."
+---
+
+## What it does
+
+Universal PSM Converter is a standalone Rust tool that converts multiple glycoproteomics
+search engine outputs into the IPSA CSV format. IPSA then imports those CSVs directly.
+
+<Note>
+  Source repository: `riley-research/universal-psm-converter`.
+</Note>
+
+## How IPSA uses it
+
+When you drop a supported search engine export into IPSA, the backend calls the
+converter internally (`detect_universal_format` and `convert_universal_file` in
+`src-tauri/src/lib.rs`). IPSA writes the generated CSVs next to the original file
+and immediately imports them.
+
+Use the standalone CLI only if you want offline/batch conversion, CI pipelines, or
+to inspect output before import.
+
+## Supported formats
+
+- FragPipe (MSFragger) `.tsv`
+- Byonic `.xlsx` / `.csv`
+- Glyco-Decipher `.txt`
+- GPQuest `.csv`
+- OPair `.psmtsv`
+- pGlyco `.txt`
+
+## Standalone CLI (optional)
+
+<Steps>
+  <Step title="Detect the format (optional)">
+    ```powershell
+    cd <path-to-universal-psm-converter>
+    cargo run --features cli -- --input "<path-to-psm-file>" --output "<output-dir>" --detect-only
+    ```
+  </Step>
+
+  <Step title="Convert to IPSA CSVs">
+    ```powershell
+    cargo run --features cli -- --input "<path-to-psm-file>" --output "<output-dir>"
+    ```
+
+    The CLI prints the detected format, row counts, and elapsed time.
+  </Step>
+</Steps>
+
+## Output files
+
+The converter writes two files into the output directory. When IPSA runs it, those
+files are written to the same folder as the original engine export.
+
+```text
+Identifications.csv
+Modifications.csv
+```
+
+### Identifications schema
+
+| Column | Required | Notes |
+| --- | --- | --- |
+| `Scan` | Yes | Integer scan number. |
+| `Sequence` | Yes | Peptide sequence. |
+| `Charge` | Yes | Integer precursor charge. |
+| `Modification` | No | IPSA modification string. |
+| `spectral_file` | No | Used for RAW/mzML linking. |
+
+### Modifications schema
+
+| Column | Required | Notes |
+| --- | --- | --- |
+| `Modification Name` | Yes | Canonical modification name. |
+| `Modification Mass` | Yes | Delta mass as float. |
+| `Position` | No | Optional site metadata. |
+| `Sequence` | No | Optional sequence context. |
+
+## Evaluate conversion output (CLI)
+
+Use the CLI output plus a quick CSV sanity check before import.
+
+```powershell
+cd <output-dir>
+$ids = Import-Csv .\Identifications.csv
+$mods = Import-Csv .\Modifications.csv
+"Identifications: $($ids.Count)"
+"Modifications: $($mods.Count)"
+```
+
+Batch convert a folder and log results:
+
+```powershell
+$inputDir = "<path-to-psm-folder>"
+$outputDir = "<path-to-output-root>"
+$log = Join-Path $outputDir "conversion.log"
+
+Get-ChildItem $inputDir -File | ForEach-Object {
+  $engineOut = $_.FullName
+  $outDir = Join-Path $outputDir $_.BaseName
+  New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+  "Converting $engineOut" | Tee-Object -FilePath $log -Append
+  cargo run --features cli -- --input "$engineOut" --output "$outDir" | Tee-Object -FilePath $log -Append
+}
+```
+
+## Import into IPSA
+
+If you used the CLI, upload both CSVs into IPSA (drag and drop in the UI). If you
+drop the original engine output into IPSA, the app performs conversion and import
+automatically.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Unsupported file format">
+    The converter uses filename extension + header detection. Verify the extension and file type.
+  </Accordion>
+  <Accordion title="Missing headers">
+    IPSA CSV import requires `Scan`, `Sequence`, `Charge` for identifications and
+    `Modification Name`, `Modification Mass` for modifications.
+  </Accordion>
+  <Accordion title="Empty output">
+    Check the input file contains PSM rows and the converter detected the expected format.
+  </Accordion>
+</AccordionGroup>

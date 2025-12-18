@@ -21,6 +21,15 @@
               "development",
               "nuget/windows"
             ]
+          },
+          {
+            "group": "Data ingestion",
+            "pages": [
+              "data-ingestion/overview",
+              "data-ingestion/universal-psm-converter",
+              "data-ingestion/multi-search-processing",
+              "data-ingestion/database-insertion"
+            ]
           }
         ]
       }

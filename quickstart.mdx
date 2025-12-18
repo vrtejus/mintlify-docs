@@ -56,9 +56,9 @@ Get your documentation site running locally and make your first customization.
 If you want IPSA inside a .NET pipeline, build and install the local package:
 
 ```powershell
-cd C:\Users\vishn\Developer\GitHub\IPSA\nuget
+cd <path-to-ipsa>\nuget
 .\build.ps1
-dotnet nuget add source "C:\Users\vishn\Developer\GitHub\IPSA\nuget\artifacts" -n ipsa-local
+dotnet nuget add source ".\artifacts" -n ipsa-local
 dotnet add package Ipsa.Native --version 0.1.0 --source ipsa-local
 ```
 
