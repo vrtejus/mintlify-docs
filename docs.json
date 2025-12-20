@@ -86,5 +86,11 @@
     "socials": {
       "github": "https://github.com/riley-research"
     }
+  },
+  "seo": {
+    "indexHiddenPages": false,
+    "metatags": {
+      "canonical": "https://ipsa.ms/docs"
+    }
   }
 }
